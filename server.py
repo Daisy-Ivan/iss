@@ -1,165 +1,179 @@
+import pprint
 import socket
+import bisect
 import sys
-localIP = "127.0.0.1"
-#48000~48499
-localPort = 48000
-bufferSize = 2048
-user_list = []
-ip_list = []
-port_list = []
-flist=[]
-user = ""
-ip = ""
-port = ""
-msg = ""
-def register(user, ip, port):
+import traceback
+import logging
 
-    #messagefromclient = UDPServerSocket.recvfrom(bufferSize)
-   # user = messagefromclient[0]
-    if not user.isalpha():
-        msg = "you must enter user in alphabet"
-        UDPServerSocket.sendto(msg.encode(), clientAddress)
-        print(msg)
-        return
-    elif user in user_list:
-        msg = "user exist"
-        UDPServerSocket.sendto(msg.encode(), clientAddress)
-        print(msg)
-        return
-    elif len(user) < 0 or len(user) > 15:
-        msg = "the length of string is 1 to 15"
-        UDPServerSocket.sendto(msg.encode(), clientAddress)
-        print(msg)
-        return
-    #elif port in port_list:
-    #    msg = "port exist"
-    #    UDPServerSocket.sendto(msg.encode(), clientAddress)
-    #    print(msg)
+pp = pprint.PrettyPrinter(indent=2)
 
-    else:
-        user_list.append(user)
-        ip_list.append(ip)
-        port_list.append(port)
-        msg = "User registered"
-        UDPServerSocket.sendto(msg.encode(), clientAddress)
-        print(msg)
+def send_fail(socket, ip, port):
+    return socket.sendto(str.encode("FAILURE"), (ip, int(port)))
 
-def queryhandles():
-    if len(user_list)==0:
-        print(len(user_list))
-        msg = "There is no handles"
-        UDPServerSocket.sendto(msg.encode(), clientAddress)
-        print(msg)
-        return
-    else:
-        print(len(user_list))
-        print(user_list)
-        msg = "query handles printed"
-        UDPServerSocket.sendto(msg.encode(), clientAddress)
-        print(msg)
+def send_success(socket, ip, port):
+    return socket.sendto(str.encode("SUCCESS"), (ip, int(port)))
 
-def follow(user,follower):
-    #flist[0]==user;
-    #flist[len(flist)]==follower
-   # if len(flist)>0:
-    msg = "Success"
-    UDPServerSocket.sendto(msg.encode(), clientAddress)
-    print(msg)
-  #      return
-    #else:
-   #     msg = "Faild "
-   #     UDPServerSocket.sendto(msg.encode(), clientAddress)
-   #     print(msg)
+def send_msg(msg, socket, ip, port):
+    return socket.sendto(str.encode(msg), (ip, int(port)))
 
-def drop(user,follower):
+def ds2lst(ds):
+    lst = []
+    for (k,v) in ds.items():
+        lst.append([k, *list(v['net'].values())])
+    return lst
 
-   # if flist[0]== user:
-   #     if user in user_list:
-     #       i = user_list.index(user)
-     #       user_list.remove(user)
-     #       flist.remove(follower)
-   if follower=="b":
-            msg = "Follower droped"
-            UDPServerSocket.sendto(msg.encode(), clientAddress)
-            print(msg)
-   else:
-            msg = "Follower does not exist"
-            UDPServerSocket.sendto(msg.encode(), clientAddress)
-            print(msg)
-def exit1(user):
-    if user=="a":
-        msg = "Success"
-        UDPServerSocket.sendto(msg.encode(), clientAddress)
-    else:
-        msg = "Failure"
-        UDPServerSocket.sendto(msg.encode(), clientAddress)
+def lst2str(lst):
+    # double nested list to string
+    return ";".join([','.join(item) for item in lst])
 
-msgFromServer = "Hello UDP Client"
+def get_followers_lst(handle, ds):
 
-bytesToSend = str.encode(msgFromServer)
+    lst = [[handle, *list(ds['a']['net'].values())]]
 
-# Create a datagram socket
+    for follower in ds[handle]['followers']:
+        lst.append([follower , *list(ds[follower]['net'].values())])
 
-UDPServerSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
+    return lst
 
-# Bind to address and ip
-
-UDPServerSocket.bind((localIP, localPort))
-
-print("UDP server up and listening")
-
-# Listen for incoming datagrams
-
-while True:
-    message, clientAddress = UDPServerSocket.recvfrom(bufferSize)
-    #print(clientAddress[0])
-    #print("split")
-    #print(clientAddress[1])
-    receive_message = message.decode()
-    m = receive_message.split()
-
-    a = clientAddress[0] #ip address
-    b = clientAddress[1] #port number
-
-   # message = bytesAddressPair[0]
-   # address = bytesAddressPair[1] #ip, port
-   # print(m[0])
-    lens = len(m)
-    if m[0] == 'register' and lens == 2:
-        register(m[1], a, b)
+def change_followers_port(followers_lst):
+    # followers_lst
+    # [['a', '127.0.0.1', '6661'],
+    #  ['b', '127.0.0.1', '6662'],
+    return [[item [0], item[1] , str(int(item[2])-1110)] for item in followers_lst]
 
 
-    elif m[0] == 'queryhandles' and lens == 1:
-        queryhandles()
+def main():
+    args = sys.argv[1:]
+    localIP = args[0]
+    localPort = int(args[1])
 
-    elif m[0] == 'follow' and lens == 3:
-        if m[1]!=m[2]:
-            follow(m[1],m[2])
-        else:
-            msg="Follower cannot as same as user"
-       # msg = "querygames printed"
-            UDPServerSocket.sendto(msg.encode(), clientAddress)
-    elif m[0] == 'drop' and lens == 3:
-        if m[1] != m[2]:
-            drop(m[1], m[2])
-        else:
-            msg = "Follower cannot as same as user"
-            # msg = "querygames printed"
-            UDPServerSocket.sendto(msg.encode(), clientAddress)
-    elif m[0] =='exit' and lens == 2:
-            exit1(m[1])
-    else:
-        msg = "please enter the correct command"
-        UDPServerSocket.sendto(msg.encode(), clientAddress)
-    #clientIP = "Client IP Address:{}".format(address)
+#     localIP     = "127.0.0.1"
+#     localPort   = 6660
+
+    bufferSize  = 1024
+
+    UDPServerSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
+    UDPServerSocket.bind((localIP, localPort))
+
+    print("UDP server up and listening")
+
+    # ds = {
+    #  'a': {'net': {'ip': '127.0.0.1', 'port': '6661'},
+    #        'followers': ['b', 'c']},
+    #  'b': {'net': {'ip': '127.0.0.1', 'port': '6662'}, 'followers': []},
+    #  'c': {'net': {'ip': '127.0.0.1', 'port': '6663'}, 'followers': []},
+    #  'd': {'net': {'ip': '127.0.0.1', 'port': '6664'}, 'followers': []},
+    #  'e': {'net': {'ip': '127.0.0.1', 'port': '6665'}, 'followers': []},
+    #  'f': {'net': {'ip': '127.0.0.1', 'port': '6666'}, 'followers': []},
+    #  'g': {'net': {'ip': '127.0.0.1', 'port': '6667'}, 'followers': []},
+    #  'h': {'net': {'ip': '127.0.0.1', 'port': '6668'}, 'followers': []},
+    #  'i': {'net': {'ip': '127.0.0.1', 'port': '6669'}, 'followers': []}
+    # }
+
+    ds = {}
+
+    while(True):
+        message, (ip, port) = UDPServerSocket.recvfrom(bufferSize)
+        message = message.decode("utf-8").split()
+        command = message[0]
+
+        if command == "ds":
+            print(f"{command}: ")
+            pp.pprint(dict(ds))
+            send_msg("SUCCESS", UDPServerSocket, ip, port)
+
+        if command == "register":
+            try:
+                command, handle, ip_in_msg, port_in_msg = message
+                handle = handle[1:]
+
+                if handle in ds:
+                    send_msg("FAILURE", UDPServerSocket, ip, port)
+
+                ds[handle] = {'net': {'ip': ip_in_msg, 'port': port_in_msg}, 'followers': []}
+
+                print(f"{command}: ")
+                pp.pprint(dict(ds))
+                send_msg("SUCCESS", UDPServerSocket, ip, port)
+            except Exception as e:
+                send_msg("FAILURE", UDPServerSocket, ip, port)
+                logging.error(traceback.format_exc())
+
+        if command == "query":
+            print(f"{command}: ")
+
+            UDPServerSocket.sendto(str.encode(lst2str(ds2lst(ds))), (ip, int(port)))
 
 
-    #print(clientMsg)
-    #print(clientIP)
+        # follow @⟨handlei ⟩ @⟨handlej ⟩
+        if command == "follow":
+            command, handle_i, handle_j = message
+            handle_i = handle_i[1:]
+            handle_j = handle_j[1:]
 
-    # Sending a reply to client
+            if handle_i not in ds[handle_j]['followers']:
+                bisect.insort(ds[handle_j]['followers'], handle_i)
+                send_msg("SUCCESS", UDPServerSocket, ip, port)
+            else:
+                send_msg("FAILURE", UDPServerSocket, ip, port)
 
-    #UDPServerSocket.sendto(bytesToSend, address)
+            print(f"{command}: ")
+            pp.pprint(dict(ds))
+
+        # drop @⟨handlei⟩ @⟨handlej⟩,
+        if command == "drop":
+            command, handle_i, handle_j = message
+            handle_i = handle_i[1:]
+            handle_j = handle_j[1:]
+
+            if handle_i in ds[handle_j]['followers']:
+                ds[handle_j]['followers'].remove(handle_i)
+                send_msg("SUCCESS", UDPServerSocket, ip, port)
+            else:
+                send_msg("FAILURE", UDPServerSocket, ip, port)
+            print(f"{command}: ")
+            pp.pprint(dict(ds))
+
+        # tweet @⟨handle⟩ "tweet"
+        if command == "tweet":
+            command, handle, *tweet = message
+            tweet = " ".join(tweet)
+
+            handle = handle[1:]
+
+            followers_lst = get_followers_lst(handle, ds)
+            followers_lst = change_followers_port(followers_lst)
+
+            send_msg(lst2str(followers_lst),
+                     UDPServerSocket, ip, port)
+            print(f"{command}: ")
+            print("clinet ip: ", ip, port)
+            pp.pprint(lst2str(get_followers_lst(handle, ds)))
 
 
-print("end")
+        # end-tweet @⟨handle⟩
+        if command == "end-tweet":
+            try:
+                command, handle = message
+                handle = handle[1:]
+                send_msg("SUCCESS", UDPServerSocket, ip, port)
+                print(f"{command}: ")
+            except ValueError:
+                send_msg(f"FAILURE {ValueError}", UDPServerSocket, ip, port)
+
+        # exit @⟨handle⟩
+        if command == "exit":
+            command, handle = message
+            handle = handle[1:]
+
+            for k in ds:
+                if handle in ds[k]['followers']:
+                    ds[k]['followers'].remove(handle)
+
+            ds.pop(handle, None)
+            send_msg("SUCCESS", UDPServerSocket, ip, port)
+
+            print(f"{command}: ")
+            pp.pprint(dict(ds))
+if (__name__ == '__main__'):
+    main()
